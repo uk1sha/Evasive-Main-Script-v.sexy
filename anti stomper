@@ -1,0 +1,78 @@
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local localPlayer = Players.LocalPlayer
+
+-- Configuration
+local TOGGLE_KEY = Enum.KeyCode.V -- Press this key to show/hide the GUI
+local isEnabled = false
+
+-- 1. Create the Main GUI Container
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "Evasive_AntiStomp_UI"
+screenGui.ResetOnSpawn = false -- Keeps the button active across lives
+screenGui.Parent = localPlayer:WaitForChild("PlayerGui")
+
+-- 2. Create the Toggle Button
+local button = Instance.new("TextButton")
+button.Size = UDim2.new(0, 200, 0, 50)
+button.Position = UDim2.new(0.5, -100, 0.9, -60)
+button.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+button.TextColor3 = Color3.new(1, 1, 1)
+button.Text = "Anti Stomp: OFF"
+button.Font = Enum.Font.GothamBold
+button.Visible = true -- Starts visible
+button.Parent = screenGui
+
+local corner = Instance.new("UICorner", button)
+corner.CornerRadius = UDim.new(0, 10)
+
+-- Keybind Toggle Logic
+UserInputService.InputBegan:Connect(function(input, processed)
+    if not processed and input.KeyCode == TOGGLE_KEY then
+        button.Visible = not button.Visible
+    end
+end)
+
+-- References that update on Respawn
+local character, humanoid, hrp
+local function UpdateRefs(newChar)
+    character = newChar
+    humanoid = newChar:WaitForChild("Humanoid")
+    hrp = newChar:WaitForChild("HumanoidRootPart")
+end
+
+localPlayer.CharacterAdded:Connect(UpdateRefs)
+if localPlayer.Character then UpdateRefs(localPlayer.Character) end
+
+-- Button Click Logic
+button.MouseButton1Click:Connect(function()
+    isEnabled = not isEnabled
+    button.Text = isEnabled and "Anti Stomp: ON" or "Anti Stomp: OFF"
+    button.TextColor3 = isEnabled and Color3.fromRGB(0, 255, 150) or Color3.new(1, 1, 1)
+end)
+
+-- Anti-Stomp Heartbeat Logic
+local limbs = {
+    "LeftUpperArm", "LeftLowerArm", "LeftHand", "RightUpperArm", "RightLowerArm", "RightHand",
+    "LeftUpperLeg", "LeftLowerLeg", "LeftFoot", "RightUpperLeg", "RightLowerLeg", "RightFoot",
+    "LowerTorso", "UpperTorso"
+}
+
+RunService.Heartbeat:Connect(function()
+    -- Only run if active AND humanoid is valid AND health is low
+    if isEnabled and humanoid and humanoid.Parent and humanoid.Health < 5 then
+        for _, name in ipairs(limbs) do
+            local p = character:FindFirstChild(name)
+            if p then p:Destroy() end
+        end
+        
+        if hrp then
+            hrp.CFrame = CFrame.new(0, 10000, 0) -- Teleport safely away
+            task.wait()
+            hrp:Destroy()
+        end
+    end
+end)
+
+print("Evasive Anti-Stomp Loaded. Press 'V' to Toggle Menu.")
