@@ -1,0 +1,166 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
+
+local _ID = "EV_" .. math.random(100, 999)
+local ScreenGui = Instance.new("ScreenGui", CoreGui)
+ScreenGui.Name = _ID
+
+-- Global State
+local ESP_CONFIG = {
+    Enabled = false,
+    Color = Color3.fromRGB(0, 255, 255),
+    Rainbow = false,
+    ShowNames = true,
+    ShowHealth = true,
+    ShowTools = true,
+    R = 0, G = 255, B = 255
+}
+
+-- UI Construction (Modern Dark)
+local Main = Instance.new("Frame", ScreenGui)
+Main.Size = UDim2.new(0, 250, 0, 380)
+Main.Position = UDim2.new(0.05, 0, 0.4, 0)
+Main.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+Main.BorderSizePixel = 0
+Main.Active = true
+Main.Draggable = true
+
+local Corner = Instance.new("UICorner", Main)
+Corner.CornerRadius = UDim.new(0, 12)
+
+local Title = Instance.new("TextLabel", Main)
+Title.Size = UDim2.new(1, 0, 0, 40)
+Title.Text = "EVASIVE ULTIMATE"
+Title.TextColor3 = Color3.new(1, 1, 1)
+Title.Font = Enum.Font.GothamBold
+Title.BackgroundTransparency = 1
+
+-- Utility for creating buttons
+local function createToggle(name, pos, callback)
+    local btn = Instance.new("TextButton", Main)
+    btn.Size = UDim2.new(0.85, 0, 0, 30)
+    btn.Position = UDim2.new(0.075, 0, 0, pos)
+    btn.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+    btn.Text = name
+    btn.TextColor3 = Color3.new(0.6, 0.6, 0.6)
+    btn.Font = Enum.Font.Gotham
+    Instance.new("UICorner", btn)
+    
+    local state = false
+    btn.MouseButton1Click:Connect(function()
+        state = not state
+        btn.TextColor3 = state and Color3.new(1,1,1) or Color3.new(0.6,0.6,0.6)
+        btn.BackgroundColor3 = state and Color3.fromRGB(60, 60, 255) or Color3.fromRGB(35,35,40)
+        callback(state)
+    end)
+end
+
+-- Utility for Sliders
+local function createSlider(label, pos, colorVal, max, callback)
+    local lab = Instance.new("TextLabel", Main)
+    lab.Text = label .. ": " .. colorVal
+    lab.Size = UDim2.new(0.85, 0, 0, 15)
+    lab.Position = UDim2.new(0.075, 0, 0, pos)
+    lab.BackgroundTransparency = 1
+    lab.TextColor3 = Color3.new(0.8, 0.8, 0.8)
+    lab.TextXAlignment = Enum.TextXAlignment.Left
+    
+    local sBack = Instance.new("Frame", Main)
+    sBack.Size = UDim2.new(0.85, 0, 0, 4)
+    sBack.Position = UDim2.new(0.075, 0, 0, pos + 18)
+    sBack.BackgroundColor3 = Color3.new(0.2, 0.2, 0.2)
+    
+    local sFill = Instance.new("Frame", sBack)
+    sFill.Size = UDim2.new(colorVal/max, 0, 1, 0)
+    sFill.BackgroundColor3 = Color3.fromRGB(200, 200, 200)
+
+    sBack.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            local move = RunService.RenderStepped:Connect(function()
+                local mousePos = game:GetService("UserInputService"):GetMouseLocation().X
+                local relative = math.clamp((mousePos - sBack.AbsolutePosition.X) / sBack.AbsoluteSize.X, 0, 1)
+                sFill.Size = UDim2.new(relative, 0, 1, 0)
+                local val = math.floor(relative * max)
+                lab.Text = label .. ": " .. val
+                callback(val)
+            end)
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then move:Disconnect() end
+            end)
+        end
+    end)
+end
+
+-- Feature Implementation
+createToggle("Master ESP", 50, function(v) ESP_CONFIG.Enabled = v end)
+createToggle("Show Names", 85, function(v) ESP_CONFIG.ShowNames = v end)
+createToggle("Show Health", 120, function(v) ESP_CONFIG.ShowHealth = v end)
+createToggle("Show Items", 155, function(v) ESP_CONFIG.ShowTools = v end)
+createToggle("Rainbow Mode", 190, function(v) ESP_CONFIG.Rainbow = v end)
+
+createSlider("Red", 235, 0, 255, function(v) ESP_CONFIG.R = v end)
+createSlider("Green", 275, 255, 255, function(v) ESP_CONFIG.G = v end)
+createSlider("Blue", 315, 255, 255, function(v) ESP_CONFIG.B = v end)
+
+-- ESP Logic
+RunService.RenderStepped:Connect(function()
+    if ESP_CONFIG.Rainbow then
+        ESP_CONFIG.Color = Color3.fromHSV(tick()%5/5, 1, 1)
+    else
+        ESP_CONFIG.Color = Color3.fromRGB(ESP_CONFIG.R, ESP_CONFIG.G, ESP_CONFIG.B)
+    end
+
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= Players.LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+            local char = p.Character
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            
+            -- Find or Create Highlight
+            local high = char:FindFirstChild("EV_High") or Instance.new("Highlight", char)
+            high.Name = "EV_High"
+            high.Enabled = ESP_CONFIG.Enabled
+            high.FillColor = ESP_CONFIG.Color
+            high.OutlineTransparency = 0
+            
+            -- Info Tag
+            local head = char:FindFirstChild("Head")
+            if head then
+                local billboard = head:FindFirstChild("EV_Tag") or Instance.new("BillboardGui", head)
+                billboard.Name = "EV_Tag"
+                billboard.AlwaysOnTop = true
+                billboard.Size = UDim2.new(0, 100, 0, 50)
+                billboard.ExtentsOffset = Vector3.new(0, 3, 0)
+                billboard.Enabled = ESP_CONFIG.Enabled
+
+                local text = billboard:FindFirstChild("Text") or Instance.new("TextLabel", billboard)
+                text.Name = "Text"
+                text.BackgroundTransparency = 1
+                text.Size = UDim2.new(1, 0, 1, 0)
+                text.Font = Enum.Font.GothamBold
+                text.TextSize = 12
+                text.TextColor3 = ESP_CONFIG.Color
+                
+                local str = ""
+                if ESP_CONFIG.ShowNames then str ..= p.Name .. "\n" end
+                if ESP_CONFIG.ShowHealth and hum then str ..= math.floor(hum.Health) .. " HP\n" end
+                if ESP_CONFIG.ShowTools then
+                    local tool = char:FindFirstChildOfClass("Tool")
+                    str ..= "[" .. (tool and tool.Name or "Hands") .. "]"
+                end
+                text.Text = str
+            end
+            
+            -- Particles
+            local root = char.HumanoidRootPart
+            local part = root:FindFirstChild("EV_Part") or Instance.new("ParticleEmitter", root)
+            part.Name = "EV_Part"
+            part.Enabled = ESP_CONFIG.Enabled
+            part.Color = ColorSequence.new(ESP_CONFIG.Color)
+            part.Size = NumberSequence.new(0.4)
+            part.Rate = 5
+            part.Speed = NumberRange.new(0)
+            part.Lifetime = NumberRange.new(0.6)
+        end
+    end
+end)
